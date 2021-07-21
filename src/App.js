@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Container from "./components/Container";
 import SearchBar from "./components/SearchBar";
 import ImageGallery from "./components/ImageGallery";
@@ -10,108 +10,88 @@ import fetchImg from "./services/Pixabay";
 import "./App.css";
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
-class App extends Component {
-  state = {
-    query: "",
-    page: 1,
-    gallery: [],
-    loading: false,
-    showModal: false, // модалка открывается по state того компонента который хочет его открыть
-    largeImageURL: "",
-    alt: null,
-    error: null,
-  };
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [gallery, setGallery] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImageURL, setLargeImageURL] = useState("");
+  const [alt, setAlt] = useState(null);
+  const [error, setError] = useState(null);
 
-  componentDidUpdate(prevProps, prevState) {
-    const { query } = this.state;
-    if (prevState.query !== query) {
-      this.getImgs();
-    }
-  }
-
-  handleSubmit = (search) => {
-    if (this.state.query === search) {
-      return;
-    }
-
-    this.setState({
-      query: search,
-      page: 1,
-      gallery: [],
-    });
-  };
-
-  getImgs = () => {
-    const { query, page } = this.state;
-
-    this.setState({ loading: true });
+  const getImgs = useCallback(() => {
+    setLoading(true);
 
     fetchImg({ query, page })
       .then((gallery) => {
         if (gallery.length === 0) {
           alert(`Sorry! ${query} is not found`);
         }
-        this.setState((prevState) => ({
-          gallery: [...prevState.gallery, ...gallery],
-          page: prevState.page + 1,
-        }));
-        this.scrollPageDown();
+        setGallery((prevGallery) => [...prevGallery, ...gallery]);
+        scrollPageDown();
       })
-      .catch((error) => this.setState({ error }))
+      .catch((error) => setError(error))
       .finally(() => {
-        this.setState({ loading: false });
+        setLoading(false);
       });
+  }, [page, query]);
+
+  useEffect(() => {
+    if (!query) return;
+    getImgs();
+  }, [query, getImgs]);
+
+  const handleSubmit = (search) => {
+    if (query === search) {
+      return;
+    }
+    setQuery(search);
+    setPage(1);
+    setGallery([]);
+    setLoading(true);
+    setError(null);
+    setShowModal(false);
   };
 
-  scrollPageDown = () => {
-    // setTimeout(() => {
+  const scrollPageDown = () => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
       behavior: "smooth",
     });
-    // }, 600);
   };
 
-  toggleModal = () => {
-    // метод открытия/закрытия модального окна
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
+  const toggleModal = () => {
+    setShowModal(!showModal);
   };
 
-  setImgInfo = ({ largeImageURL, tags }) => {
-    this.setState({ largeImageURL, tags });
-    this.toggleModal();
+  const setImgInfo = ({ largeImageURL, tags }) => {
+    setLargeImageURL(largeImageURL);
+    setAlt(tags);
+    toggleModal();
   };
+  const LoadMore = () => setPage((prevPage) => prevPage + 1);
 
-  render() {
-    const { gallery, showModal, largeImageURL, alt, loading, error } =
-      this.state;
-    return (
-      <Container>
-        <SearchBar onSubmit={this.handleSubmit} />
-        {error && <p>Whoops, something went wrong.</p>}
-        {loading && (
-          <Loader
-            className="Loader"
-            type="TailSpin"
-            color="#00BFFF"
-            height={80}
-            width={80}
-            timeout={2000}
-          />
-        )}
-        <ImageGallery gallery={gallery} onSetImgInfo={this.setImgInfo} />
-        {gallery.length > 0 && !loading && <Button onLoadMore={this.getImgs} />}
-        {showModal && ( // если showModal = true, рендерим модалку
-          <Modal onClose={this.toggleModal}>
-            <img src={largeImageURL} alt={alt} width="800" height="600" />
-          </Modal>
-        )}
-        {/* <ToastContainer /> */}
-      </Container>
-    );
-  }
+  return (
+    <Container>
+      <SearchBar onSubmit={handleSubmit} />
+      {error && <p>Whoops, something went wrong.</p>}
+      {loading && (
+        <Loader
+          className="Loader"
+          type="TailSpin"
+          color="#00BFFF"
+          height={80}
+          width={80}
+          timeout={2000}
+        />
+      )}
+      <ImageGallery gallery={gallery} onSetImgInfo={setImgInfo} />
+      {gallery.length >= 6 && !loading && <Button onLoadMore={LoadMore} />}
+
+      {showModal && (
+        <Modal largeImageURL={largeImageURL} alt={alt} onClose={toggleModal} />
+      )}
+    </Container>
+  );
 }
-
-export default App;
